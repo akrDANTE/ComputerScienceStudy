@@ -19,3 +19,28 @@ As we can see there are multiple approaches(algorithms) to solve the problem, we
 Now you can say why bother, when we have already found a solution.. we are done. Even though computers are fast, but they are still limited by hardware which are RAM(memory) and CPU(Central Processing Unit). If our algorithm is badly designed, it will either overflow the memory or it will not solve problem before we die(more on this in [analysis of algorithms]()). So we don't want that.
 
 That is why we study and create algorithms to find efficient and elegant solutions to important problems, which give result in reasonable time while running under hardware constraints.
+
+## Algorithm paradigms
+
+Algorithm paradigms are framework or model on top of which sits the design of a class of algorithms. Algorithm paradigm is an abstraction of algorithm, just as algorithm is an abstraction of a computer program.
+
+### Well Known algorithm paradigms:
+
+            * Brute force
+            * Recursion
+            * Backtracking
+            * Greedy
+            * Divide and conquer
+            * Dynamic Programming
+            * Branch and bound
+            * Prune and search
+
+### Categories of algorithms:
+
+            * Brute force
+            * Recursive
+            * Randomized
+            * Sorting
+            * Searching
+            * Hashing
+            * Ad hoc
