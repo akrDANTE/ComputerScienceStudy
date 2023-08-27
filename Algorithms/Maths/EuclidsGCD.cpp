@@ -9,7 +9,7 @@ Steps:
     ii)  Divide a by b so that a = q*b + r
     iii) set a = b and b = r.
     iv)  Repeat till b becomes 0.
-    v)   Value of a is GCD when b is 0.
+    v)   Value of a is GCD when b is 0
 */
 
 void swap(int &a, int &b)
