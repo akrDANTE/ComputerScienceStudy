@@ -10,21 +10,29 @@ Flask has three dependecies:
 ## Basics
 
 1. All flask applications must create and application instance. The webserver passes all requests it receives from clients to this object for handling, using a protocal called WSGI. application instance is an object of class Flask.
-   The only required argument is name of the main module or package of the application.\
-    from flask import Flask\
-    app = Flask(\_\_name\_\_)\
+   The only required argument is name of the main module or package of the application.
+   ```
+    from flask import Flask
+    app = Flask(__name__)
+   ```
    The \_\_name\_\_ argument tells flask the main directory of the app and where to find other files like templates.
-2. Routes and view functions:\
-   @app.route('route_address')\
-   def route_function():\
+2. Routes and view functions:
+   ```
+   @app.route('route_address')
+   def route_function():
+   ```
    The line staring with @ is a python decorator. common use of decorators is to register functions as callbacks.
-   Alternately following can also be used here:\
-   app.add_url_rule('/', 'index', index)\
+   Alternately following can also be used here:
+   ```
+   app.add_url_rule('/', 'index', index)
+   ```
    Here return value of the index function is the response of the webserver to the client.\
-   The address of the route can be used to pass parameters to the function as shown:\
-   @app.route('/user/\<name>')\
-   def user(name):\
-    return 'hello, {}'.format(name)
+   The address of the route can be used to pass parameters to the function as shown:
+   ```
+   @app.route('/user/<name>')
+   def user(name):
+       return 'hello, {}'.format(name)
+   ```
 3. You can run flask app by setting environment variable FLASK_APP to the main server file and then start server by flask run.
 
 4. The request(from flask import request) object encapsulates the HTTP request sent by the client. Contexts enable Flask to make certain variables globally accessible to a thread without interfering with the other threads.\
@@ -39,10 +47,14 @@ Flask has three dependecies:
    When the application context is pushed, the current_app and g variables become available to the thread. Likewise when request context is pushed, request and session objects become available as well.\
    app_ctx = app.app_context()
 
-6. app.url_map to view the available routes in the form of a hash-map.\
-   Map([<Rule '/' (HEAD, OPTIONS, GET) -> index>,\
-   <Rule '/static/<filename>' (HEAD, OPTIONS, GET) -> static>,\
+6. app.url_map to view the available routes in the form of a hash-map.
+
+   ```
+   Map([<Rule '/' (HEAD, OPTIONS, GET) -> index>,
+   <Rule '/static/<filename>' (HEAD, OPTIONS, GET) -> static>,
    <Rule '/user/<name>' (HEAD, OPTIONS, GET) -> user>])
+   ```
+
    HEAD and OPTIONS are managed by flask.\
    static route is added by flask to give access to static files.
 
@@ -57,11 +69,15 @@ Flask has three dependecies:
    To share data between request hook functions and view functions is to use the g context global as storage.
 
 9. Responses:
-   return '\<h1>stuff\</h1>', response_code, headers\
-   flask provides make_response function for returning responses. Example:\
-   response = make_response('\<h1>test\<\h1>')\
-   response.set_cookie('answer', '42')\
-   return response\
+   ```
+   return '<h1>stuff</h1>', response_code, headers
+   ```
+   flask provides make_response function for returning responses. Example:
+   ```
+   response = make_response('<h1>test<\h1>')
+   response.set_cookie('answer', '42')
+   return response
+   ```
    There is a special type of response called redirect which returns a new URL for the browser to navigate to, indicated by 302 status code.\
    from flask import redirect
 
@@ -74,26 +90,35 @@ Seperates the business logic and the presentation logic. Templates contains the 
    other filters available, safe, lower, upper, title, trip, striptags.
    https://jinja.palletsprojects.com/en/3.1.x/templates/#builtin-filters
 
-   {% if user %}\
-    Hello {{ user }}!\
-   {% else %}\
-    Hello, stranger!\
+   ```
+   {% if user %}
+    Hello {{ user }}!
+   {% else %}
+    Hello, stranger!
    {% endif %}
 
-   {% for comment in comments %}\
-    \<li> {{ comment }} \</li>\
+   {% for comment in comments %}
+    <li> {{ comment }} </li>
    {% endfor %}
+   ```
 
-   macros: are like functions in python.\
-   {% macro render_comment(comment) %}\
-    \<li> {{ comment }} \</li>\
+   macros: are like functions in python.
+
+   ```
+   {% macro render_comment(comment) %}
+     <li> {{ comment }} </li>
    {% end_macro %}
+   ```
 
-   then can be rendered like {{ render_comment(comment) }}
+   then can be rendered like `{{ render_comment(comment) }}`
 
    Macros can be written to a seperate file and can be imported later.\
-   {% import 'macros.html' as macros %} which can be then used as\
+
+   ```
+   {% import 'macros.html' as macros %}
+   which can be then used as
    {{ macros.render_comment(comment) }}
+   ```
 
    To avoid code duplication frequently used portions of templates can be stored in different html file and can be included as:\
    {% include 'common.html' %}
@@ -140,50 +165,71 @@ moment js documentation: http://momentjs.com/docs/#/displaying/
    app.config is a general pupose dictionary to store conf variables used by flask, extensions or application itself. \
    The secret key is part of mechanism to protect against CSRF attacks.
 
-2. Form Classes: each form is represented by a class that inherits from the class FlaskForm. This contains lists of fields in the form as objects and each of these objects can have validators attached.\
-   from flask_wtf import FlaskForm\
-   from wtforms import StringField, SubmitField\
-   from wtforms.validators import DataRequired\
-   class NameForm(FlaskForm):\
-   name = StringField('What is your Name?', validators=[DataRequired()])\
-   submit = SubmitField('Submit')\
+2. Form Classes: each form is represented by a class that inherits from the class FlaskForm. This contains lists of fields in the form as objects and each of these objects can have validators attached.
+
+   ```
+   from flask_wtf import FlaskForm
+   from wtforms import StringField, SubmitField
+   from wtforms.validators import DataRequired
+   class NameForm(FlaskForm):
+       name = StringField('What is your Name?', validators=[DataRequired()])
+       submit = SubmitField('Submit')
+   ```
+
    following fields are available: BooleanField, DateField, DateTimeField, DecimalField, FileField, HiddenField, MultipleFileField, FieldList, FloatField,
    FormField, IntegerField, PasswordField, RadioField, SelectField, SelectMultipleField, SubmitField, StringField, TextAreaField\
    Following validators are available: DataRequired, Email, EqualTo, InputRequired,IPAddress, Lenght, MacAddress, NumberRange, Optional, Regexp, URL, UUID, AnyOf, NoneOf\
 
 3. The forms generated using above can be rendered as HTML as shown:\
-   \<form>\
-   &nbsp; &nbsp; {{ form.hidden_tag() }}\
-   &nbsp; &nbsp; {{ form.name.label }} {{ form.name(id='my-text-field') }}\
-   &nbsp; &nbsp; {{ form.submit() }}\
-   \</form>\
-   Another way is to use the bootstrap like so:\
+
+   ```
+   <form>
+      {{ form.hidden_tag() }}
+      {{ form.name.label }} {{ form.name(id='my-text-field') }}
+      {{ form.submit() }}
+   </form>
+   ```
+
+   Another way is to use the bootstrap like so:
+
+   ```
    {% import "bootstrap/wtf.html" as wtf %}
    {{  wtf.quick_form(form) }}
+   ```
 
-4. Form Handling in view functions.\
-   name = None\
-   form = NameForm()\
-   if form.validate_on_submit():\
-   &nbsp; &nbsp; name = form.name.data
-   &nbsp; &nbsp; form.name.data = ''
+4. Form Handling in view functions.
+
+   ```
+   name = None
+   form = NameForm()
+   if form.validate_on_submit():
+      name = form.name.data
+      form.name.data = ''
    return render_template('index.html', form=form, name=name)
+   ```
 
 5. As during form submit, the page refreshes the request is sent to the server for handling. Then response is returned to the client. But when client refreshes the page, same post request is repeated by the client's browser, which is not desirable. To handle this response is returned using redirect.\
-   Also when redirecting the data received from the form will be lost, that data can be stored in the user sessions.\
-   if form.validate_on_submit():\
-    &nbsp; &nbsp; session['name'] = form.name.data\
-   &nbsp; &nbsp; return redirect(url_for('index'))
+   Also when redirecting the data received from the form will be lost, that data can be stored in the user sessions.
+
+   ```
+   if form.validate_on_submit():
+      session['name'] = form.name.data
+      return redirect(url_for('index'))
    return render_template('index.html', form=form, name=session.get('name'))
+   ```
 
 6. Message Flashing: the flash displays a message to the user based on the handling of the form.\
-   flash('Looks like you have changed your name!')\
-   these messages are displayed in templates using:\
-   {% for message in get_flashed_messages() %}\
-   \<div class="alert alert-warning">\
-   \<button type="button" class="close" data-dismiss="alert">&times;\</button>\
-   {{ message }}\
-   \</div>
+   ```
+   flash('Looks like you have changed your name!')
+   ```
+   these messages are displayed in templates using:
+   ```
+   {% for message in get_flashed_messages() %}
+   <div class="alert alert-warning">
+        <button type="button" class="close" data-dismiss="alert">&times;\</button>
+        {{ message }}
+   </div>
+   ```
 
 ## Databases
 
