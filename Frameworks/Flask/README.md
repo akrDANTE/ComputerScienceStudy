@@ -611,3 +611,626 @@ def test():
 
 The application can be run as usual using flask run.\
 The environment variables can be added to ~/.bashrc file.
+
+## Authentication System
+
+1. Packages used for authentication:
+<ul>
+    <li>Flask-Login: Management of user sessions for logged-in users.
+    <li>WerkZeug, bcrypt, passlib: Password hashing and verification
+    <li>itsdangerous: Cryptographyically secure token generation and verification
+</ul>
+
+2. Password Security:
+
+   ```
+   from werkzeug.security import generate_password_hash, check_password_hash
+   class User(db.Model):
+       # ...
+       password_hash = db.Column(db.String(128))
+
+       @property
+       def password(self):
+           raise AttributeError('password is not a readable attribute')
+
+       @password.setter
+       def password(self, password):
+           self.password_hash = generate_password_hash(password)
+
+       def verify_password(self, password):
+           return check_password_hash(self.password_hash, password)
+   ```
+
+3. Auth Blueprint can be created as follows:
+
+   ```
+   # app/auth/__init__.py
+   from flask import Blueprint
+   auth = Blueprint('auth', __name__)
+   from . import views
+
+   # app/auth/view.py
+   from flask import render_template
+   from . import auth
+   @auth.route('/login')
+   def login():
+       # store the login.html in templates/auth/ directory
+       return render_template('auth/login.html')
+   ```
+
+   then in the app the blueprint can be used.
+
+   ```
+   # app/__init__.py
+
+   def create_app(config_name):
+       # ...
+       from .auth import auth as auth_blueprint
+       # here url_prefix is is used to register all routes with given prefix
+       # so effective url will be  http://localhost:5000/auth/login
+       app.register_blueprint(auth_blueprint, url_prefix='/auth')
+       return app
+   ```
+
+4. User Auth using flask-login\
+   The methods that need to be implemented: is_authenticated, is_active, is_anonymous, get_id\
+   use UserMixin base class that is provided by the flask-login package.
+
+   ```
+   # app/models.py
+   class User(UserMixin, db.Model):
+       __tablename__ = 'users'
+       id = db.Column(db.Integer, primary_key = True)
+       email = db.Column(db.String(64), unique=True, index=True)
+       username = db.Column(db.String(64), unique=True, index=True)
+       password_hash = db.Column(db.String(128))
+       role_id = db.Column(db.Integer, db.ForeignKey('roles.id'))
+   ```
+
+   Then inside the main app factory:
+
+   ```
+   # app/__init__.py
+   from flask_login import LoginManager
+   login_manager = LoginManager()
+   login_manager.login_view = 'auth.login'
+   def create_app(config_name):
+       # ...
+       login_manager.init_app(app)
+       # ...
+   ```
+
+   then again in models file:
+
+   ```
+   from . import login_manager
+   @login_manager.user_loader
+   def load_user(user_id):
+       return User.query.get(int(user_id))
+   ```
+
+   To protect routes we can use the following code:
+
+   ```
+   from flask_login import login_required
+   @app.route('/secret')
+   @login_required
+   def secret():
+       return 'Only authenticated users are allowed!'
+   ```
+
+5. Login form:
+   The login form can be created using flask-form:
+
+   ```
+   # app/auth/forms.py
+
+   from flask_wtf import FlaskForm
+   from wtforms import StringField, PasswordField, BooleanField, SubmitField
+   from wtforms.validators import DataRequired, Length, Email
+
+   class LoginForm(FlaskForm):
+       email = StringField('Email', validators=[DataRequired(), Length(1, 64),Email()])
+       password = PasswordField('Password', validators=[DataRequired()])
+       remember_me = BooleanField('Keep me logged in')
+       submit = SubmitField('Log In')
+   ```
+
+   in the base template, we can use the current_user's status for authentication:
+
+   ```
+   # app/templates/base.html
+   <ul class="nav navbar-nav navbar-right">
+        {% if current_user.is_authenticated %}
+        <li><a href="{{ url_for('auth.logout') }}">Log Out</a></li>
+        {% else %}
+        <li><a href="{{ url_for('auth.login') }}">Log In</a></li>
+        {% endif %}
+    </ul>
+   ```
+
+   The current_user variable is automatically available to all the view functions and templates by flask-login. the variable contains current logged in user or proxy anonymous user.
+
+6. Signing users in:\
+   The users can be signed in using the following piece of code:
+
+   ```
+    # app/auth/views.py
+    from flask import render_template, redirect, request, url_for, flash
+    from flask_login import login_user
+    from . import auth
+    from ..models import User
+    from .forms import LoginForm
+    @auth.route('/login', methods=['GET', 'POST'])
+    def login():
+        form = LoginForm()
+        if form.validate_on_submit():
+            user = User.query.filter_by(email=form.email.data).first()
+            if user is not None and user.verify_password(form.password.data):
+                login_user(user, form.remember_me.data)
+                next = request.args.get('next')
+                if next is None or not next.startswith('/'):
+                    next = url_for('main.index')
+                return redirect(next)
+            flash('Invalid username or password.')
+        return render_template('auth/login.html', form=form)
+   ```
+
+   the remember me boolean is used to save the value in long term cookie in user's browser. The optional REMEMBER_COOKIE_DURATION configuration option can be used to change the default one-year duration for the remember cookie.\
+   The login template can be updated as follows:
+
+   ```
+    // app/templates/auth/login.html
+    {% extends "base.html" %}
+    {% import "bootstrap/wtf.html" as wtf %}
+
+    {% block title %}Flasky - Login{% endblock %}
+    {% block page_content %}
+    <div class="page-header">
+        <h1>Login</h1>
+    </div>
+    <div class="col-md-4">
+        {{ wtf.quick_form(form) }}
+    </div>
+    {% endblock %}
+   ```
+
+7. Logging out users:
+   The logout route can be implemented as follows:
+
+   ```
+    # app/auth/views.py
+    from flask_login import logout_user, login_required
+    @auth.route('/logout')
+    @login_required
+    def logout():
+        logout_user()
+        flash('You have been logged out.')
+        return redirect(url_for('main.index'))
+   ```
+
+8. Registering Users:\
+   The registration form can be added as follows:
+
+   ```
+    # app/auth/forms.py
+    from flask_wtf import FlaskForm
+    from wtforms import StringField, PasswordField, BooleanField, SubmitField
+    from wtforms.validators import DataRequired, Length, Email, Regexp, EqualTo
+    from wtforms import ValidationError
+    from ..models import User
+
+    class RegistrationForm(FlaskForm):
+        email = StringField('Email', validators=[DataRequired(), Length(1, 64), Email()])
+        username = StringField('Username', validators=[
+                                DataRequired(), Length(1, 64),
+                                Regexp('^[A-Za-z][A-Za-z0-9_.]*$', 0,
+                                'Usernames must have only letters, numbers, dots or '
+                                'underscores')])
+        password = PasswordField('Password', validators=[
+                                DataRequired(), EqualTo('password2', message='Passwords must match.')])
+        password2 = PasswordField('Confirm password', validators=[DataRequired()])
+        submit = SubmitField('Register')
+
+        def validate_email(self, field):
+            if User.query.filter_by(email=field.data).first():
+            raise ValidationError('Email already registered.')
+
+        def validate_username(self, field):
+            if User.query.filter_by(username=field.data).first():
+            raise ValidationError('Username already in use.')
+
+   ```
+
+   in the login form:
+
+   ```
+    <p>
+        New user?
+        <a href="{{ url_for('auth.register') }}">
+            Click here to register
+        </a>
+    </p>
+   ```
+
+   The register view can then be added as:
+
+   ```
+    # app/auth/views.py
+    @auth.route('/register', methods=['GET', 'POST'])
+    def register():
+        form = RegistrationForm()
+        if form.validate_on_submit():
+            user = User(email=form.email.data,
+            username=form.username.data,
+            password=form.password.data)
+            db.session.add(user)
+            db.session.commit()
+            flash('You can now login.')
+            return redirect(url_for('auth.login'))
+        return render_template('auth/register.html', form=form)
+   ```
+
+9. Account Confirmation: The confirmation tokens can be generated using itsdangerous
+   the default validity time of the tokens is one hour.
+
+   ```
+    # app/models.py
+    from itsdangerous import TimedJSONWebSignatureSerializer as Serializer
+    from flask import current_app
+    from . import db
+    class User(UserMixin, db.Model):
+        # ...
+        confirmed = db.Column(db.Boolean, default=False)
+        def generate_confirmation_token(self, expiration=3600):
+            s = Serializer(current_app.config['SECRET_KEY'], expiration)
+            return s.dumps({'confirm': self.id}).decode('utf-8')
+
+        def confirm(self, token):
+            s = Serializer(current_app.config['SECRET_KEY'])
+            try:
+                data = s.loads(token.encode('utf-8'))
+            except:
+                return False
+            if data.get('confirm') != self.id:
+                return False
+            self.confirmed = True
+            db.session.add(self)
+            return True
+   ```
+
+   The confirmation emails can be sent using the following piece of code:
+
+   ```
+    from ..email import send_email
+
+    @auth.route('/register', methods=['GET', 'POST'])
+    def register():
+        form = RegistrationForm()
+        if form.validate_on_submit():
+            # ...
+            db.session.add(user)
+            db.session.commit()
+            token = user.generate_confirmation_token()
+            send_email(user.email, 'Confirm Your Account',
+                        'auth/email/confirm', user=user, token=token)
+            flash('A confirmation email has been sent to you by email.')
+            return redirect(url_for('main.index'))
+        return render_template('auth/register.html', form=form)
+   ```
+
+   The auth/email/confirm.txt is the text body of the confirmation email:
+
+   ```
+    Dear {{ user.username }},
+    Welcome to Flasky!
+    To confirm your account please click on the following link:
+    {{ url_for('auth.confirm', token=token, _external=True) }}
+    Sincerely,
+    The Flasky Team
+    Note: replies to this email address are not monitored.
+   ```
+
+   The view that confirms the user is as follows:
+
+   ```
+    from flask_login import current_user
+    @auth.route('/confirm/<token>')
+    @login_required
+    def confirm(token):
+        if current_user.confirmed:
+            return redirect(url_for('main.index'))
+        if current_user.confirm(token):
+            db.session.commit()
+            flash('You have confirmed your account. Thanks!')
+        else:
+            flash('The confirmation link is invalid or has expired.')
+        return redirect(url_for('main.index'))
+   ```
+
+   To prevent unconfirmed user's from accessing the pages we can use before_app_request:
+
+   ```
+    # app/auth/views.py
+    @auth.before_app_request
+
+    def before_request():
+        if current_user.is_authenticated \
+                and not current_user.confirmed \
+                and request.blueprint != 'auth' \
+                and request.endpoint != 'static':
+            return redirect(url_for('auth.unconfirmed'))
+
+    @auth.route('/unconfirmed')
+    def unconfirmed():
+        if current_user.is_anonymous or current_user.confirmed:
+            return redirect(url_for('main.index'))
+        return render_template('auth/unconfirmed.html')
+   ```
+
+   The resending of confirmation link can be achieved by the following code:
+
+   ```
+    # app/auth/views.py
+    @auth.route('/confirm')
+    @login_required
+    def resend_confirmation():
+        token = current_user.generate_confirmation_token()
+        send_email(current_user.email, 'Confirm Your Account',
+                    'auth/email/confirm', user=current_user, token=token)
+        flash('A new confirmation email has been sent to you by email.')
+        return redirect(url_for('main.index'))
+   ```
+
+   Password updates, password resets, email address changes can be provided using similar code.
+
+## Application Programming Interfaces (API)
+
+1. REST(Representational State Transfer) has following characteristics:
+
+   - Client Server
+   - Stateless
+   - Cache
+   - Uniform interface
+   - Layered System
+   - Code-on-demand
+
+2. Request Methods:
+
+   - GET
+   - POST
+   - PUT
+   - DELETE
+
+3. Request and response body:
+
+   - Json and xml are used commonly.
+   - In a well designed RESTful API, the client knows a short list of top-level resource URLs and then discovers the rest from links included in responses, similar to how you can discover new web pages while browsing the web by clicking on links that appear in pages that you know about.
+
+4. Use versioning in case of API development like /api/v1/posts
+
+5. API blueprint structure:
+
+   ```
+   |-flasky
+       |-app/
+           |-api
+               |-__init__.py
+               |-users.py
+               |-posts.py
+               |-comments.py
+               |-authentication.py
+               |-errors.py
+               |-decorators.py
+   ```
+
+   API blueprint creation:
+
+   ```
+   # app/api/__init__.py
+   from flask import Blueprint
+   api = Blueprint('api', __name__)
+   from . import authentication, posts, users, comments, errors
+
+   #app/init.py
+   def create_app(config_name):
+       # ...
+       from .api import api as api_blueprint
+       app.register_blueprint(api_blueprint, url_prefix='/api/v1')
+       # ..
+   ```
+
+6. Response codes: A RESTful web service informs the client of the status of a request by sending the appropriate HTTP status code in the response, plus any additional information in the response body. Typical status codes:<ul>
+
+   - 200 : Request completed
+   - 201 : Request completed and new resource completed
+   - 202 : Request accepted, in progress will run async.
+   - 204 : No content , request completed but no data in response
+   - 400 : Bad Request
+   - 401 : Unauthorized
+   - 403 : Forbidden - 404 : Not found
+   - 405 : Method not allowed
+   - 500 : Internal Server Error
+    </ul>
+   For returning in case of error in api this code can be used for handling:
+
+   ```
+       #app/api/errors.py
+       def page_not_found(e):
+           if request.accept_mimetypes.accept_json and \
+                   not request.accept_mimetypes.accept_html:
+               response = jsonify({'error': 'not found'})
+               response.status_code = 404
+               return response
+           return render_template('404.html'), 404
+   ```
+
+7. Authentication with Flask-HTTPAuth
+
+   - With HTTP authentication the credentials are included in auth header with all requests
+   - Use the flask-httpauth as follows:
+
+     ```
+         # app/api/authentication.py
+         from flask_httpauth import HTTPBasicAuth
+         auth = HTTPBasicAuth()
+
+         @auth.verify_password
+         def verify_password(email, password):
+             if email == '':
+                 return False
+             user = User.query.filter_by(email = email).first()
+             if not user:
+                 return False
+             g.current_user = user
+             return user.verify_password(password)
+
+         # error handler:
+         from .errors import unauthorized
+         @auth.error_handler
+         def auth_error():
+             return unauthorized('Invalid credentials')
+     ```
+
+   - To protect a route, the auth.login_required decorator is used:
+     ```
+     @api.route('/posts/')
+     @auth.login_required
+     def get_posts():
+         pass
+     ```
+   - since all the routes in blueprint need to be protected the login_required can be used once in a before_request handler:
+     ```
+         from .errors import forbidden
+         @api.before_request
+         @auth.login_required
+         def before_request():
+             if not g.current_user.is_anonymous and \
+                     not g.current_user.confirmed:
+             return forbidden('Unconfirmed account')
+     ```
+
+8. Token based authentication:
+
+   ```
+   class User(db.Model):
+   # ...
+   def generate_auth_token(self, expiration):
+       s = Serializer(current_app.config['SECRET_KEY'],
+       expires_in=expiration)
+       return s.dumps({'id': self.id}).decode('utf-8')
+
+   @staticmethod
+   def verify_auth_token(token):
+       s = Serializer(current_app.config['SECRET_KEY'])
+       try:
+           data = s.loads(token)
+       except:
+           return None
+       return User.query.get(data['id'])
+
+   # app/api/athentication.py
+   @auth.verify_password
+   def verify_password(email_or_token, password):
+       if email_or_token == '':
+           return False
+       if password == '':
+           g.current_user = User.verify_auth_token(email_or_token)
+           g.token_used = True
+           return g.current_user is not None
+       user = User.query.filter_by(email=email_or_token).first()
+       if not user:
+           return False
+       g.current_user = user
+       g.token_used = False
+       return user.verify_password(password)
+   ```
+
+   write to_json methods in the db models such as:
+
+   ```
+    class Post(db.Model):
+        # ...
+        def to_json(self):
+            json_post = {
+                'url': url_for('api.get_post', id=self.id),
+                'body': self.body,
+                'body_html': self.body_html,
+                'timestamp': self.timestamp,
+                'author_url': url_for('api.get_user', id=self.author_id),
+                'comments_url': url_for('api.get_post_comments', id=self.id),
+                'comment_count': self.comments.count()
+            }
+            return json_post
+   ```
+
+9. Implementing resource endpoints:
+
+   ```
+   # app/api/posts.py
+   @api.route('/posts/')
+   def get_posts():
+       posts = Post.query.all()
+       return jsonify({ 'posts': [post.to_json() for post in posts] })
+
+   @api.route('/posts/<int:id>')
+   def get_post(id):
+       post = Post.query.get_or_404(id)
+       return jsonify(post.to_json())
+
+   @api.route('/posts/', methods=['POST'])
+   @permission_required(Permission.WRITE)
+   def new_post():
+       post = Post.from_json(request.json)
+       post.author = g.current_user
+       db.session.add(post)
+       db.session.commit()
+       return jsonify(post.to_json()), 201, \
+           {'Location': url_for('api.get_post', id=post.id)}
+
+   @api.route('/posts/<int:id>', methods=['PUT'])
+   @permission_required(Permission.WRITE)
+   def edit_post(id):
+       post = Post.query.get_or_404(id)
+       if g.current_user != post.author and \
+               not g.current_user.can(Permission.ADMIN):
+           return forbidden('Insufficient permissions')
+       post.body = request.json.get('body', post.body)
+       db.session.add(post)
+       db.session.commit()
+       return jsonify(post.to_json())
+
+   # app/api/decorators.py
+   def permission_required(permission):
+       def decorator(f):
+           @wraps(f)
+           def decorated_function(*args, **kwargs):
+               if not g.current_user.can(permission):
+                   return forbidden('Insufficient permissions')
+               return f(*args, **kwargs)
+           return decorated_function
+       return decorator
+   ```
+
+10. Pagination of large resource collections:
+    ```
+    @api.route('/posts/')
+    def get_posts():
+        page = request.args.get('page', 1, type=int)
+        pagination = Post.query.paginate(
+            page, per_page=current_app.config['FLASKY_POSTS_PER_PAGE'],
+            error_out=False)
+        posts = pagination.items
+        prev = None
+        if pagination.has_prev:
+            prev = url_for('api.get_posts', page=page-1)
+        next = None
+        if pagination.has_next:
+            next = url_for('api.get_posts', page=page+1)
+        return jsonify({
+            'posts': [post.to_json() for post in posts],
+            'prev_url': prev,
+            'next_url': next,
+            'count': pagination.total
+        })
+    ```
