@@ -1,4 +1,7 @@
 *.exe
 .vscode/*
+.vs
+Debug
+*.vcxproj*
 __pycache__/
 venv/
