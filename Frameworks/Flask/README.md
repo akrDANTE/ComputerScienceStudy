@@ -392,13 +392,13 @@ moment js documentation: http://momentjs.com/docs/#/displaying/
         |-email.py
         |-models.py
         |-migrations/
-        |-tests/
-            |-__init__.py
-            |-test*.py
-        |-venv/
-        |-requirements.txt
-        |-config.py
-        |-flasky.py
+     |-tests/
+         |-__init__.py
+         |-test*.py
+     |-venv/
+     |-requirements.txt
+     |-config.py
+     |-flasky.py
 ```
 
 config.py contains the configuration class.
